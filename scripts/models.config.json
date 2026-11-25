@@ -1,0 +1,37 @@
+{
+  "revisionNote": "Models are OpenAI Whisper, converted for browsers and published on Hugging Face by Xenova (Apache-2.0). Each is pinned to an exact revision and downloaded once at build time; the app never downloads anything from Hugging Face at run time.",
+  "files": [
+    "config.json",
+    "generation_config.json",
+    "preprocessor_config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "onnx/encoder_model_quantized.onnx",
+    "onnx/decoder_model_merged_quantized.onnx"
+  ],
+  "models": [
+    {
+      "id": "Xenova/whisper-base.en",
+      "revision": "95bf40a508535962c6483ead40270b2e32267508",
+      "label": "Standard",
+      "note": "Best balance for most recordings",
+      "english": true,
+      "default": true
+    },
+    {
+      "id": "Xenova/whisper-tiny.en",
+      "revision": "79fb389fc764e7c395bd330e9531d9d32ada7049",
+      "label": "Quick draft",
+      "note": "Roughly twice as fast, with more mistakes",
+      "english": true
+    },
+    {
+      "id": "Xenova/whisper-tiny",
+      "revision": "main",
+      "label": "Test model",
+      "note": "For automated testing only",
+      "english": false,
+      "testOnly": true
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "session-transcriber",
+  "version": "0.1.0",
+  "description": "On-device transcription of audio recordings. Nothing is uploaded.",
+  "scripts": {
+    "models": "node scripts/fetch-models.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/test.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "25.19.0",
+    "@huggingface/transformers": "4.3.2"
+  },
+  "private": true,
+  "type": "module"
+}

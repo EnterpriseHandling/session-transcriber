@@ -1,0 +1,54 @@
+name: Build, test and publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Keep downloaded speech models between builds
+        uses: actions/cache@v6
+        with:
+          path: models
+          key: models-${{ hashFiles('scripts/models.config.json') }}
+      - name: Download speech models (build time only)
+        run: node scripts/fetch-models.mjs
+      - name: Build site
+        run: node scripts/build.mjs
+      - name: Test in a real browser (Standard quality)
+        run: node scripts/test.mjs
+      - name: Test in a real browser (Quick draft quality)
+        run: node scripts/test.mjs
+        env:
+          TEST_MODEL: Xenova/whisper-tiny.en
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

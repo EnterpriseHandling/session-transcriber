@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; connect-src 'self' blob: data:; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#23423a">
+<title>Session Transcriber</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <img src="icon.svg" alt="" width="40" height="40">
+  <div>
+    <h1>Session Transcriber</h1>
+    <p class="tag">Recordings are transcribed on this device. Nothing is uploaded.</p>
+  </div>
+</header>
+
+<main>
+  <p id="boot" class="notice" role="status">Getting ready…</p>
+  <noscript><p class="notice bad">This app needs JavaScript switched on.</p></noscript>
+
+  <section id="step-file" class="card" hidden>
+    <h2><span class="num">1</span> Choose a recording</h2>
+    <p class="hint">Plug in the recorder, then pick a WAV or MP3 file from it.</p>
+    <label class="btn primary" for="file">Choose recording</label>
+    <input id="file" type="file" accept="audio/*,.wav,.mp3,.m4a" class="visually-hidden">
+    <p id="file-info" class="file-info" aria-live="polite"></p>
+    <audio id="player" controls hidden></audio>
+  </section>
+
+  <section id="step-run" class="card" hidden>
+    <h2><span class="num">2</span> Transcribe</h2>
+    <fieldset id="quality">
+      <legend>Quality</legend>
+      <div id="models"></div>
+    </fieldset>
+    <label class="check"><input type="checkbox" id="times" checked> Show the time at the start of each line</label>
+    <div class="row">
+      <button id="start" class="btn primary" disabled>Start transcribing</button>
+      <button id="cancel" class="btn" hidden>Stop</button>
+    </div>
+    <div id="progress-wrap" hidden>
+      <progress id="bar" max="1" value="0"></progress>
+      <p id="status" role="status" aria-live="polite"></p>
+    </div>
+    <p id="error" class="notice bad" role="alert" hidden></p>
+  </section>
+
+  <section id="step-out" class="card" hidden>
+    <h2><span class="num">3</span> Check and save</h2>
+    <p class="hint">Read it through against the recording and correct any mistakes. You can type straight into the box.</p>
+    <textarea id="out" rows="16" spellcheck="true" aria-label="Transcript"></textarea>
+    <div class="row">
+      <button id="save" class="btn primary">Save as text file</button>
+      <button id="copy" class="btn">Copy</button>
+      <button id="clear" class="btn danger">Clear everything</button>
+    </div>
+    <p id="saved" class="hint" role="status" aria-live="polite"></p>
+  </section>
+
+  <details class="card privacy">
+    <summary>How this keeps recordings private</summary>
+    <ul>
+      <li>The recording is read and transcribed inside this browser, on this device.</li>
+      <li>The app is blocked from contacting any other website, so audio and text cannot be sent anywhere.</li>
+      <li>Nothing is kept by the app. Close the tab and the recording and transcript are gone unless you saved them.</li>
+      <li>Saved transcripts go where you choose. Keep them on this device, not in a shared or online folder.</li>
+      <li>It works with no internet connection once it has been opened once online.</li>
+    </ul>
+    <p class="hint">Transcripts are a machine's best attempt and will contain mistakes. Always check them against the recording.</p>
+    <p class="hint" id="build"></p>
+  </details>
+</main>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
