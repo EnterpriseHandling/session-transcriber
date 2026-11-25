@@ -175,6 +175,23 @@ try {
     check('Enter splits a line in two', (await rows()).length === before + 1);
     await page.keyboard.press('Backspace');
     check('Backspace at the start joins it back', (await rows()).length === before);
+    // Undo / redo: the join, then the split, then typing.
+    await page.keyboard.down('Control'); await page.keyboard.press('z'); await page.keyboard.up('Control');
+    check('Ctrl+Z undoes the join', (await rows()).length === before + 1);
+    await page.click('#undo');
+    check('Undo button undoes the split', (await rows()).length === before);
+    await page.click('#redo');
+    check('Redo puts the split back', (await rows()).length === before + 1);
+    await page.click('#undo');
+    const firstText = await page.$eval('#turns .turn-text', (e) => e.textContent);
+    await page.click('#turns .turn-text');
+    await page.keyboard.press('End');
+    await page.keyboard.type(' extra words', { delay: 20 });
+    await page.keyboard.down('Control'); await page.keyboard.press('z'); await page.keyboard.up('Control');
+    check('Ctrl+Z undoes typing', (await page.$eval('#turns .turn-text', (e) => e.textContent)) === firstText);
+    await page.keyboard.down('Control'); await page.keyboard.press('y'); await page.keyboard.up('Control');
+    check('Ctrl+Y redoes typing', (await page.$eval('#turns .turn-text', (e) => e.textContent)).includes('extra words'));
+    await page.click('#undo');
     // PDF export, made on the device.
     const pdf = await page.evaluate(async () => {
       const { makePdf } = await import('./pdf.js');

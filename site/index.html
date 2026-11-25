@@ -127,8 +127,12 @@
 
   <section id="step-out" class="card" hidden>
     <h2><span class="num">3</span> Check and save</h2>
-    <p class="hint">Read it through against the recording and correct any mistakes. Click a time to hear that part. Type in any line to change it. Press Enter inside a line to split it in two.</p>
+    <p class="hint">Read it through against the recording and correct any mistakes. Click a time to hear that part. Type in any line to change it. Press Enter inside a line to split it in two. Ctrl+Z undoes a change.</p>
     <div id="who" class="who" hidden></div>
+    <div class="edit-bar">
+      <button type="button" id="undo" class="btn small" disabled title="Undo (Ctrl+Z)">↶ Undo</button>
+      <button type="button" id="redo" class="btn small" disabled title="Redo (Ctrl+Y)">↷ Redo</button>
+    </div>
     <div id="turns" class="turns" role="group" aria-label="Transcript"></div>
     <label class="field pdf-name" for="pdf-name">Name for the PDF footer
       <input id="pdf-name" type="text" maxlength="60" autocomplete="off" placeholder="Your full name">

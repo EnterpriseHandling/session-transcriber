@@ -13,6 +13,7 @@ const el = {
   file: $('file'), fileInfo: $('file-info'), player: $('player'),
   models: $('models'), times: $('times'), start: $('start'), cancel: $('cancel'),
   wrap: $('progress-wrap'), bar: $('bar'), status: $('status'), error: $('error'),
+  undo: $('undo'), redo: $('redo'),
   savePdf: $('save-pdf'), pdfName: $('pdf-name'),
   audioOpen: $('audio-open'), audioPanel: $('audio-panel'), audioClose: $('audio-close'), setOut: $('set-out'), setOutTest: $('set-out-test'),
   setMic: $('set-mic'), setMicTest: $('set-mic-test'), setLevel: $('set-level'), setNote: $('set-note'),
@@ -36,6 +37,7 @@ const transcript = new Transcript({
   root: el.turns,
   whoRoot: el.who,
   onChange: () => { state.dirty = true; el.saved.textContent = ''; },
+  onHistory: () => { el.undo.disabled = !transcript.canUndo; el.redo.disabled = !transcript.canRedo; },
   onPlay: (t) => { if (!el.player.hidden) { el.player.currentTime = Math.max(0, t - 0.3); el.player.play().catch(() => {}); } },
 });
 const hasTranscript = () => !transcript.empty;
@@ -285,6 +287,8 @@ function showError(text) {
 // ---------- saving ----------
 
 el.times.addEventListener('change', () => transcript.showTimes(el.times.checked));
+el.undo.addEventListener('click', () => transcript.undo());
+el.redo.addEventListener('click', () => transcript.redo());
 const transcriptText = () => transcript.text({ times: el.times.checked });
 
 el.save.addEventListener('click', () => {

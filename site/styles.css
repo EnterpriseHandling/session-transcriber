@@ -238,6 +238,7 @@ progress::-moz-progress-bar { background: var(--teal-2); border-radius: 99px; }
 .who-line select, .turn-who { font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--sp-ink); background: var(--sp-bg); border: 1px solid transparent; border-radius: 99px; padding: 0.2rem 0.5rem; cursor: pointer; max-width: 11rem; }
 .who-play { font: inherit; font-size: 0.75rem; width: 1.9rem; height: 1.9rem; border-radius: 50%; border: 1px solid var(--line); background: #fff; color: var(--teal); cursor: pointer; flex: none; }
 .who-quote { color: var(--muted); font-size: 0.9rem; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.edit-bar { display: flex; gap: 0.5rem; justify-content: flex-end; margin-bottom: 0.5rem; }
 .turns { border: 1px solid var(--line); border-radius: 12px; background: #fcfdfd; padding: 0.5rem 0.4rem; max-height: 34rem; overflow-y: auto; }
 .turn { display: grid; grid-template-columns: auto auto 1fr auto; column-gap: 0.6rem; align-items: start; padding: 0.4rem 0.5rem 0.4rem 0.6rem; border-left: 4px solid transparent; border-radius: 4px; }
 .turn[class*="sp-"] { border-left-color: var(--sp); margin: 0.15rem 0; }

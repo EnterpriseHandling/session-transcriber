@@ -3,9 +3,12 @@
 //
 // Editing: type in any line. Enter splits a line in two at the cursor (handy when two
 // people ended up on one line). Backspace at the very start joins it to the line above.
+// Ctrl+Z undoes, Ctrl+Y or Ctrl+Shift+Z redoes.
 
 const JOIN_GAP = 1.5; // seconds of silence that starts a new paragraph
 const MAX_TURN = 20; // seconds before a long stretch by one person gets a new paragraph
+const HISTORY = 200; // undo steps kept
+const TYPING_PAUSE = 1200; // ms: a pause in typing starts a new undo step
 
 let nextId = 1;
 
@@ -18,7 +21,7 @@ export function clock(seconds) {
 }
 
 export class Transcript {
-  constructor({ root, whoRoot, onChange = () => {}, onPlay = () => {} }) {
+  constructor({ root, whoRoot, onChange = () => {}, onPlay = () => {}, onHistory = () => {} }) {
     this.root = root;
     this.whoRoot = whoRoot;
     this.onChange = onChange;
@@ -27,6 +30,66 @@ export class Transcript {
     this.names = ['Speaker'];
     this.labelled = false;
     this.note = '';
+    this.onHistory = onHistory;
+    this.past = [];
+    this.future = [];
+    this.typing = null;
+    root.addEventListener('keydown', (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.shiftKey) { e.preventDefault(); this.undo(); }
+      else if ((key === 'z' && e.shiftKey) || key === 'y') { e.preventDefault(); this.redo(); }
+    });
+  }
+
+  // ---------- undo / redo ----------
+
+  get canUndo() { return this.past.length > 0; }
+  get canRedo() { return this.future.length > 0; }
+
+  snapshot() {
+    return this.turns.map(({ id, t, end, person, text, check }) => ({ id, t, end, person, text, check }));
+  }
+
+  /** Call before any change, so it can be undone. */
+  record() {
+    this.past.push(this.snapshot());
+    if (this.past.length > HISTORY) this.past.shift();
+    this.future = [];
+    this.onHistory();
+  }
+
+  endTyping() { clearTimeout(this.typing?.timer); this.typing = null; }
+
+  clearHistory() { this.past = []; this.future = []; this.endTyping(); this.onHistory(); }
+
+  restore(snap, focusId) {
+    this.turns = snap.map((t) => ({ ...t }));
+    this.root.textContent = '';
+    for (const turn of this.turns) this.root.append(this.buildRow(turn));
+    this.renderWho();
+    const target = this.turns.find((t) => t.id === focusId);
+    if (target) this.placeCaret(target.textEl, target.text.length);
+    this.onChange();
+    this.onHistory();
+  }
+
+  focusedId() { return this.turns.find((t) => t.textEl === document.activeElement)?.id; }
+
+  undo() {
+    if (!this.past.length) return;
+    this.endTyping();
+    const id = this.focusedId();
+    this.future.push(this.snapshot());
+    this.restore(this.past.pop(), id);
+  }
+
+  redo() {
+    if (!this.future.length) return;
+    this.endTyping();
+    const id = this.focusedId();
+    this.past.push(this.snapshot());
+    this.restore(this.future.pop(), id);
   }
 
   get empty() { return !this.turns.some((t) => t.text.trim()); }
@@ -37,6 +100,7 @@ export class Transcript {
     this.labelled = labelled && this.names.length >= 2;
     this.note = '';
     this.root.textContent = '';
+    this.clearHistory();
     this.renderWho();
   }
 
@@ -71,7 +135,7 @@ export class Transcript {
         this.root.append(this.buildRow(turn));
       }
     }
-    if (segments.length) this.renderWho();
+    if (segments.length) { this.renderWho(); if (this.past.length || this.future.length) this.clearHistory(); }
   }
 
   // ---------- rows ----------
@@ -98,6 +162,12 @@ export class Transcript {
       who.className = 'turn-who';
       who.setAttribute('aria-label', 'Who is speaking');
       who.addEventListener('change', () => {
+        this.endTyping();
+        const before = this.snapshot();
+        before.find((x) => x.id === turn.id).person = turn.person;
+        this.past.push(before);
+        this.future = [];
+        this.onHistory();
         turn.person = Number(who.value);
         this.setCheck(turn, false);
         this.paint(turn);
@@ -118,7 +188,14 @@ export class Transcript {
     text.setAttribute('aria-label', `Transcript text at ${clock(turn.t)}`);
     text.spellcheck = true;
     text.textContent = turn.text;
+    text.addEventListener('beforeinput', (e) => {
+      if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') { e.preventDefault(); return; }
+      if (this.typing?.id !== turn.id) { this.endTyping(); this.record(); this.typing = { id: turn.id }; }
+      clearTimeout(this.typing.timer);
+      this.typing.timer = setTimeout(() => this.endTyping(), TYPING_PAUSE);
+    });
     text.addEventListener('input', () => { turn.text = text.textContent.replace(/\n+/g, ' '); this.onChange(); });
+    text.addEventListener('blur', () => this.endTyping());
     text.addEventListener('keydown', (e) => this.onKey(e, turn));
     turn.textEl = text;
     row.append(text);
@@ -128,7 +205,7 @@ export class Transcript {
     check.className = 'turn-check';
     check.textContent = 'Check';
     check.title = 'Two voices were heard close together here. Check who said what, then click to clear this.';
-    check.addEventListener('click', () => this.setCheck(turn, false));
+    check.addEventListener('click', () => { this.endTyping(); this.record(); this.setCheck(turn, false); });
     turn.checkEl = check;
     row.append(check);
 
@@ -194,6 +271,8 @@ export class Transcript {
     const left = full.slice(0, offset).trimEnd();
     const right = full.slice(offset).trimStart();
     if (!left || !right) return;
+    this.endTyping();
+    this.record();
     const at = turn.t + (turn.end - turn.t) * (offset / Math.max(1, full.length));
     const i = this.turns.indexOf(turn);
     const second = {
@@ -213,6 +292,8 @@ export class Transcript {
   }
 
   join(first, second) {
+    this.endTyping();
+    this.record();
     const at = first.textEl.textContent.length + 1;
     first.text = `${first.textEl.textContent.trimEnd()} ${second.textEl.textContent.trimStart()}`;
     first.end = second.end;
@@ -230,6 +311,8 @@ export class Transcript {
   /** Swap two people everywhere (the app cannot know which voice has which name). */
   swap(a, b) {
     if (a === b) return;
+    this.endTyping();
+    this.record();
     for (const turn of this.turns) {
       if (turn.person === a) turn.person = b;
       else if (turn.person === b) turn.person = a;
