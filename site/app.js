@@ -36,8 +36,10 @@ boot().catch((err) => {
 async function boot() {
   if ('serviceWorker' in navigator) {
     el.boot.textContent = 'Getting ready… the first time takes a minute or two.';
+    const hadController = !!navigator.serviceWorker.controller;
     await navigator.serviceWorker.register('sw.js');
     await navigator.serviceWorker.ready;
+    if (hadController) navigator.serviceWorker.addEventListener('controllerchange', onUpdate);
     if (!navigator.serviceWorker.controller || !self.crossOriginIsolated) {
       let tried = false;
       try { tried = sessionStorage.getItem('st-reloaded') === '1'; sessionStorage.setItem('st-reloaded', '1'); } catch (_) { tried = true; }
@@ -575,4 +577,28 @@ function fixPlayerLength() {
     p.currentTime = 1e101;
   };
   p.addEventListener('loadedmetadata', onMeta, { once: true });
+}
+
+// ---------- updates ----------
+
+// A new version has been downloaded in the background. Switch to it straight away
+// if nothing is in progress; otherwise offer a button so no work is ever lost.
+function onUpdate() {
+  const busy = state.running || state.recorder || (state.dirty && el.out.value.trim()) || !el.recPanel.hidden;
+  if (!busy) { location.reload(); return; }
+  if (document.getElementById('update-note')) return;
+  const note = document.createElement('p');
+  note.id = 'update-note';
+  note.className = 'notice';
+  note.textContent = 'An update is ready. Finish and save what you are doing, then ';
+  const btn = document.createElement('button');
+  btn.className = 'btn';
+  btn.style.marginLeft = '0.4rem';
+  btn.textContent = 'Update now';
+  btn.addEventListener('click', () => {
+    if (state.running || state.recorder) { showError('Finish recording or transcribing first.'); return; }
+    location.reload();
+  });
+  note.append(btn);
+  document.querySelector('main').prepend(note);
 }
