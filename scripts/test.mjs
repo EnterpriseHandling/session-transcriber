@@ -37,7 +37,12 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 const url = origin + PREFIX;
 
 const chrome = process.env.CHROME_PATH || ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser', '/usr/bin/chromium'].find(existsSync);
-const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--no-sandbox'] });
+const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: [
+  '--no-sandbox',
+  '--use-fake-ui-for-media-stream', // auto-allow the microphone
+  '--use-fake-device-for-media-stream',
+  `--use-file-for-fake-audio-capture=${join(root, 'tests/jfk.wav')}`, // the 'microphone' plays the JFK clip on a loop
+] });
 const page = await browser.newPage();
 const foreign = [];
 const failed = [];
@@ -53,6 +58,8 @@ const check = (name, ok, detail = '') => { results.push({ name, ok }); console.l
 // Strip times and punctuation, join lines: models differ on small words ("ask"/"asked") and line breaks.
 const plain = (s) => s.replace(/^\[[\d:]+\] /gm, ' ').toLowerCase().replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ');
 const KEY = 'what your country can do for you';
+// Live microphone audio is lower quality, so the small test model can mishear a word or two.
+const heard = (s) => /can do for (you|your country)/.test(plain(s));
 
 async function ready() {
   await page.waitForFunction(() => !document.getElementById('step-file').hidden, { timeout: 180000 });
@@ -60,6 +67,17 @@ async function ready() {
 async function pickModel() {
   if (!process.env.TEST_MODEL) return;
   await page.click(`input[name="model"][value="${process.env.TEST_MODEL}"]`);
+}
+async function transcribeLoaded() {
+  const t0 = Date.now();
+  await page.click('#start');
+  await page.waitForFunction(() => {
+    const s = document.getElementById('status').textContent;
+    return s.startsWith('Finished') || !document.getElementById('error').hidden;
+  }, { timeout: 900000 });
+  const error = await page.$eval('#error', (e) => (e.hidden ? '' : e.textContent));
+  if (error) throw new Error(`App showed an error: ${error}`);
+  return { text: await page.$eval('#out', (t) => t.value), seconds: (Date.now() - t0) / 1000 };
 }
 async function transcribe(file) {
   const input = await page.$('#file');
@@ -113,6 +131,67 @@ try {
   check('nothing written to browser storage', blocked.storage.local === 0 && blocked.storage.idb === 0);
   const leaked = foreign.filter((u) => !u.startsWith('https://example.com/'));
   check('app itself contacted no other website', leaked.length === 0, leaked.join(', '));
+
+
+  // ---- built-in recorder (fake microphone plays the JFK clip on a loop) ----
+  const keptCount = () => page.evaluate(async () => {
+    const dbs = (await indexedDB.databases()).map((d) => d.name);
+    if (!dbs.includes('st-recorder')) return { sessions: 0, chunks: 0 };
+    const db = await new Promise((r) => { const q = indexedDB.open('st-recorder'); q.onsuccess = () => r(q.result); });
+    const count = (s) => new Promise((r) => { const q = db.transaction(s).objectStore(s).count(); q.onsuccess = () => r(q.result); });
+    const out = { sessions: await count('sessions'), chunks: await count('chunks') };
+    const first = await new Promise((r) => { const q = db.transaction('chunks').objectStore('chunks').openCursor(); q.onsuccess = () => r(q.result?.value); });
+    if (first) {
+      const head = new Uint8Array(first.data.slice(0, 4));
+      out.plainAudioHeader = head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3; // WebM signature
+    }
+    db.close();
+    return out;
+  });
+  async function recordFor(seconds) {
+    await page.click('#rec-open');
+    await page.waitForFunction(() => !document.getElementById('rec-start').disabled, { timeout: 15000 });
+    await page.click('#rec-start');
+    await page.waitForFunction(() => !document.getElementById('rec-stop').hidden, { timeout: 15000 });
+    await new Promise((r) => setTimeout(r, seconds * 1000));
+  }
+  await page.$eval('#clear', (b) => b.click());
+
+  // 1. Crash part-way: leave the page while recording, come back, recover it.
+  await recordFor(14);
+  const midway = await keptCount();
+  check('recording is saved to the device while it records', midway.sessions === 1 && midway.chunks >= 2, JSON.stringify(midway));
+  check('saved recording pieces are encrypted', midway.plainAudioHeader === false);
+  await page.goto(url, { waitUntil: 'load' });
+  await ready();
+  await pickModel();
+  const kept = await page.$$eval('#kept-list li', (lis) => lis.length);
+  check('after a crash the recording is offered back', kept === 1);
+  await page.click('#kept-list li button'); // Open
+  await page.waitForFunction(() => !document.getElementById('start').disabled);
+  const recovered = await transcribeLoaded();
+  check('recovered recording transcribes', heard(recovered.text), recovered.text.split('\n')[0]);
+  await page.click('#rec-delete');
+  await page.waitForFunction(() => document.getElementById('kept').hidden);
+
+  // 2. Normal recording with a pause, then stop and transcribe.
+  await recordFor(12);
+  await page.click('#rec-pause');
+  await new Promise((r) => setTimeout(r, 3000));
+  await page.click('#rec-pause');
+  await new Promise((r) => setTimeout(r, 12000));
+  await page.click('#rec-stop');
+  await page.waitForFunction(() => !document.getElementById('rec-actions').hidden, { timeout: 30000 });
+  const recInfo = await page.$eval('#file-info', (e) => e.textContent);
+  const secs = (recInfo.match(/\((\d\d):(\d\d)\)/) || []).slice(1).map(Number);
+  const length = secs.length ? secs[0] * 60 + secs[1] : -1;
+  check('timer excludes the pause', length >= 22 && length <= 27, recInfo);
+  const recorded = await transcribeLoaded();
+  check('recording made in the app transcribes', heard(recorded.text), `${recorded.seconds.toFixed(1)} s`);
+  await page.click('#rec-delete');
+  await page.waitForFunction(() => document.getElementById('kept').hidden);
+  const after = await keptCount();
+  check('deleting leaves nothing stored', after.sessions === 0 && after.chunks === 0, JSON.stringify(after));
 
   await page.setOfflineMode(true);
   await page.goto(url, { waitUntil: 'load' }); // fresh visit with no network

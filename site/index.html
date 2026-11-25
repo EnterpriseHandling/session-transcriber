@@ -3,22 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; connect-src 'self' blob: data:; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; connect-src 'self' blob: data:; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#23423a">
+<meta name="theme-color" content="#1f4b55">
 <title>Session Transcriber</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <header class="top">
-  <img src="icon.svg" alt="" width="40" height="40">
-  <div>
-    <h1>Session Transcriber</h1>
-    <p class="tag">Recordings are transcribed on this device. Nothing is uploaded.</p>
+  <div class="brand">
+    <img src="mark.svg" alt="FR" width="52" height="52">
+    <div>
+      <p class="eyebrow">Frances · Confidential</p>
+      <h1>Session Transcriber</h1>
+    </div>
   </div>
+  <p class="badge"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="7" width="10" height="7" rx="1.6" fill="currentColor"/></svg>Stays on this device</p>
 </header>
 
 <main>
@@ -26,12 +30,48 @@
   <noscript><p class="notice bad">This app needs JavaScript switched on.</p></noscript>
 
   <section id="step-file" class="card" hidden>
-    <h2><span class="num">1</span> Choose a recording</h2>
-    <p class="hint">Plug in the recorder, then pick a WAV or MP3 file from it.</p>
-    <label class="btn primary" for="file">Choose recording</label>
-    <input id="file" type="file" accept="audio/*,.wav,.mp3,.m4a" class="visually-hidden">
+    <h2><span class="num">1</span> Get the recording</h2>
+    <p class="hint">Pick a WAV or MP3 file from the recorder, or record here on this Chromebook.</p>
+
+    <div id="kept" class="kept" hidden>
+      <p class="kept-title">Recordings kept on this Chromebook</p>
+      <ul id="kept-list"></ul>
+    </div>
+
+    <div class="row" id="source-buttons">
+      <label class="btn primary" for="file">Choose recording file</label>
+      <input id="file" type="file" accept="audio/*,.wav,.mp3,.m4a,.webm" class="visually-hidden">
+      <button id="rec-open" class="btn">Record here</button>
+    </div>
+
+    <div id="rec-panel" class="rec-panel" hidden>
+      <label class="field" for="mic">Microphone
+        <select id="mic"><option value="">Default microphone</option></select>
+      </label>
+      <p class="hint">Keep the Chromebook plugged in with the lid open. Recording carries on if you switch to another tab, but stops if the Chromebook goes to sleep. It is saved every few seconds, so a crash loses almost nothing.</p>
+      <div class="rec-status">
+        <span id="rec-dot" class="rec-dot" aria-hidden="true"></span>
+        <span id="rec-time" class="rec-time" aria-live="off">00:00</span>
+        <div class="meter" aria-hidden="true"><div id="level" class="meter-fill"></div></div>
+      </div>
+      <p id="rec-state" class="hint" role="status" aria-live="polite">Check the green bar moves when you speak, then press Start.</p>
+      <div class="row">
+        <button id="rec-start" class="btn primary">Start recording</button>
+        <button id="rec-pause" class="btn" hidden>Pause</button>
+        <button id="rec-stop" class="btn danger" hidden>Stop</button>
+        <button id="rec-cancel" class="btn">Close</button>
+      </div>
+    </div>
+
     <p id="file-info" class="file-info" aria-live="polite"></p>
     <audio id="player" controls hidden></audio>
+    <div id="rec-actions" hidden>
+      <p class="hint">This recording is kept on this Chromebook, encrypted, until you delete it.</p>
+      <div class="row">
+        <button id="rec-save" class="btn">Save recording as a file</button>
+        <button id="rec-delete" class="btn danger">Delete recording</button>
+      </div>
+    </div>
   </section>
 
   <section id="step-run" class="card" hidden>
@@ -67,16 +107,21 @@
   <details class="card privacy">
     <summary>How this keeps recordings private</summary>
     <ul>
-      <li>The recording is read and transcribed inside this browser, on this device.</li>
+      <li>Recordings are transcribed inside this browser, on this Chromebook.</li>
       <li>The app is blocked from contacting any other website, so audio and text cannot be sent anywhere.</li>
-      <li>Nothing is kept by the app. Close the tab and the recording and transcript are gone unless you saved them.</li>
-      <li>Saved transcripts go where you choose. Keep them on this device, not in a shared or online folder.</li>
+      <li>Files you choose from the recorder are not copied or kept. Close the tab and they are gone from the app.</li>
+      <li>Recordings made here are saved on this Chromebook as they record, encrypted with a key that never leaves this browser. They stay until you press Delete.</li>
+      <li>Saved transcripts and recordings go where you choose. Keep them on this Chromebook, not in Google Drive or another online folder.</li>
       <li>It works with no internet connection once it has been opened once online.</li>
     </ul>
     <p class="hint">Transcripts are a machine's best attempt and will contain mistakes. Always check them against the recording.</p>
     <p class="hint" id="build"></p>
   </details>
 </main>
+<footer class="foot">
+  <img src="mark.svg" alt="" width="22" height="22">
+  <p>Prepared for Frances. Recordings and transcripts are processed on this device and are never uploaded.</p>
+</footer>
 
 <script type="module" src="app.js"></script>
 </body>

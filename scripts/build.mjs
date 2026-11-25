@@ -16,6 +16,11 @@ const tf = join(root, 'node_modules/@huggingface/transformers');
 const ort = join(root, 'node_modules/onnxruntime-web/dist');
 await cp(join(tf, 'dist/transformers.min.js'), join(dist, 'vendor/transformers.min.js'));
 await cp(join(tf, 'LICENSE'), join(dist, 'vendor/LICENSE-transformers.txt')).catch(() => {});
+await mkdir(join(dist, 'fonts'), { recursive: true });
+await cp(join(root, 'node_modules/@fontsource-variable/fraunces/files/fraunces-latin-wght-normal.woff2'), join(dist, 'fonts/fraunces.woff2'));
+await cp(join(root, 'node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2'), join(dist, 'fonts/inter.woff2'));
+await cp(join(root, 'node_modules/@fontsource-variable/fraunces/LICENSE'), join(dist, 'fonts/LICENSE-fraunces.txt')).catch(() => {});
+await cp(join(root, 'node_modules/@fontsource-variable/inter/LICENSE'), join(dist, 'fonts/LICENSE-inter.txt')).catch(() => {});
 for (const f of ['ort-wasm-simd-threaded.asyncify.mjs', 'ort-wasm-simd-threaded.asyncify.wasm']) {
   await cp(join(ort, f), join(dist, 'vendor', f));
 }
