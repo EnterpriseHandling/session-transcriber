@@ -232,8 +232,7 @@ function finish(message) {
   setBusy(false);
   el.bar.value = message.startsWith('Finished') ? 1 : el.bar.value;
   el.status.textContent = message;
-  try { state.wakeLock?.release(); } catch (_) {}
-  state.wakeLock = null;
+  releaseAwake();
   if (el.out.value.trim()) el.stepOut.hidden = false;
 }
 
@@ -316,11 +315,19 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 document.addEventListener('visibilitychange', async () => {
-  if (document.visibilityState === 'visible' && state.running && !state.wakeLock) await holdAwake();
+  if (document.visibilityState === 'visible' && needAwake() && !state.wakeLock) await holdAwake();
 });
 
-// Stop the screen (and so the device) going to sleep part-way through a recording.
+// Stop the screen (and so the Chromebook) going to sleep while the app is working:
+// during transcription, and while the recorder is open or recording.
+function needAwake() { return state.running || !!state.recorder || !el.recPanel.hidden; }
+function releaseAwake() {
+  if (needAwake()) return;
+  try { state.wakeLock?.release(); } catch (_) {}
+  state.wakeLock = null;
+}
 async function holdAwake() {
+  if (state.wakeLock) return;
   try {
     const lock = await navigator.wakeLock?.request('screen');
     if (!lock) return;
@@ -387,11 +394,13 @@ el.recOpen.addEventListener('click', async () => {
   el.recPanel.hidden = false;
   el.sourceButtons.hidden = true;
   el.error.hidden = true;
+  await holdAwake();
   await startPreview();
 });
 
 el.recCancel.addEventListener('click', () => {
   stopPreview();
+  releaseAwake();
   el.recPanel.hidden = true;
   el.sourceButtons.hidden = false;
 });
@@ -489,11 +498,10 @@ async function finishRecording() {
   try {
     const result = await rec.stop();
     state.recorder = null;
-    try { state.wakeLock?.release(); } catch (_) {}
-    state.wakeLock = null;
     setRecordingUi('idle');
     el.recPanel.hidden = true;
     el.sourceButtons.hidden = false;
+    releaseAwake();
     if (result) {
       el.out.value = '';
       state.dirty = false;

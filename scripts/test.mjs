@@ -162,6 +162,8 @@ try {
   const midway = await keptCount();
   check('recording is saved to the device while it records', midway.sessions === 1 && midway.chunks >= 2, JSON.stringify(midway));
   check('saved recording pieces are encrypted', midway.plainAudioHeader === false);
+  const awake = await page.evaluate(async () => { const l = await navigator.wakeLock.request('screen'); const ok = !l.released; await l.release(); return ok; }).catch(() => 'unsupported');
+  check('screen wake lock available', awake === true || awake === 'unsupported', String(awake));
   await page.goto(url, { waitUntil: 'load' });
   await ready();
   await pickModel();
