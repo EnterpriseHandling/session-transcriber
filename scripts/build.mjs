@@ -21,6 +21,13 @@ await cp(join(root, 'node_modules/@fontsource-variable/fraunces/files/fraunces-l
 await cp(join(root, 'node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2'), join(dist, 'fonts/inter.woff2'));
 await cp(join(root, 'node_modules/@fontsource-variable/fraunces/LICENSE'), join(dist, 'fonts/LICENSE-fraunces.txt')).catch(() => {});
 await cp(join(root, 'node_modules/@fontsource-variable/inter/LICENSE'), join(dist, 'fonts/LICENSE-inter.txt')).catch(() => {});
+// PDF export: library and fonts, all served by the app itself.
+await cp(join(root, 'node_modules/pdf-lib/dist/pdf-lib.min.js'), join(dist, 'vendor/pdf-lib.min.js')); // the self-contained build
+await cp(join(root, 'node_modules/pdf-lib/LICENSE.md'), join(dist, 'vendor/LICENSE-pdf-lib.txt')).catch(() => {});
+await cp(join(root, 'node_modules/@pdf-lib/fontkit/dist/fontkit.umd.min.js'), join(dist, 'vendor/fontkit.umd.min.js'));
+await mkdir(join(dist, 'fonts/pdf'), { recursive: true });
+await cp(join(root, 'node_modules/@expo-google-fonts/inter/400Regular/Inter_400Regular.ttf'), join(dist, 'fonts/pdf/Inter-Regular.ttf'));
+await cp(join(root, 'node_modules/@expo-google-fonts/inter/600SemiBold/Inter_600SemiBold.ttf'), join(dist, 'fonts/pdf/Inter-SemiBold.ttf'));
 for (const f of ['ort-wasm-simd-threaded.asyncify.mjs', 'ort-wasm-simd-threaded.asyncify.wasm']) {
   await cp(join(ort, f), join(dist, 'vendor', f));
 }

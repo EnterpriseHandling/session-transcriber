@@ -22,10 +22,37 @@
       <h1>Session Transcriber</h1>
     </div>
   </div>
+  <div class="top-actions">
+    <button id="audio-open" class="btn small" aria-expanded="false" aria-controls="audio-panel">Audio settings</button>
   <p class="badge"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="7" width="10" height="7" rx="1.6" fill="currentColor"/></svg>Stays on this device</p>
+  </div>
 </header>
 
 <main>
+  <section id="audio-panel" class="card" hidden>
+    <h2>Audio settings</h2>
+    <p class="hint">Plug in headphones or a microphone and they appear in these lists.</p>
+    <div class="audio-grid">
+      <div>
+        <label class="field" for="set-out">Play sound through
+          <select id="set-out"><option value="">Default speakers or headphones</option></select>
+        </label>
+        <div class="row"><button id="set-out-test" class="btn small">Play test sound</button></div>
+      </div>
+      <div>
+        <label class="field" for="set-mic">Microphone for Record here
+          <select id="set-mic"><option value="">Default microphone</option></select>
+        </label>
+        <div class="row">
+          <button id="set-mic-test" class="btn small">Test microphone</button>
+          <div class="meter" aria-hidden="true"><div id="set-level" class="meter-fill"></div></div>
+        </div>
+      </div>
+    </div>
+    <p id="set-note" class="hint" role="status" aria-live="polite"></p>
+    <div class="row"><button id="audio-close" class="btn">Done</button></div>
+  </section>
+
   <p id="boot" class="notice" role="status">Getting ready…</p>
   <noscript><p class="notice bad">This app needs JavaScript switched on.</p></noscript>
 
@@ -80,7 +107,7 @@
       <legend>Who's in the room?</legend>
       <div id="people-list" class="people-list"></div>
       <button type="button" id="person-add" class="link-btn">+ Add another person</button>
-      <p class="hint">Use roles or initials, never a client's name. With two or more people, each line is labelled with who spoke.</p>
+      <p class="hint">Use roles or initials, never anyone's real name. With two or more people, each line is labelled with who spoke.</p>
     </fieldset>
     <fieldset id="quality">
       <legend>Quality</legend>
@@ -103,8 +130,13 @@
     <p class="hint">Read it through against the recording and correct any mistakes. Click a time to hear that part. Type in any line to change it. Press Enter inside a line to split it in two.</p>
     <div id="who" class="who" hidden></div>
     <div id="turns" class="turns" role="group" aria-label="Transcript"></div>
+    <label class="field pdf-name" for="pdf-name">Name for the PDF footer
+      <input id="pdf-name" type="text" maxlength="60" autocomplete="off" placeholder="Your full name">
+    </label>
+    <p class="hint">Shown at the bottom of every PDF page, followed by “private and confidential”. Remembered on this device only.</p>
     <div class="row">
-      <button id="save" class="btn primary">Save as text file</button>
+      <button id="save-pdf" class="btn primary">Save as PDF</button>
+      <button id="save" class="btn">Save as text file</button>
       <button id="copy" class="btn">Copy</button>
       <button id="clear" class="btn danger">Clear everything</button>
     </div>
@@ -119,6 +151,7 @@
       <li>Files you choose from the recorder are not copied or kept. Close the tab and they are gone from the app.</li>
       <li>Recordings made here are saved on this Chromebook as they record, encrypted with a key that never leaves this browser. They stay until you press Delete.</li>
       <li>Saved transcripts and recordings go where you choose. Keep them on this Chromebook, not in Google Drive or another online folder.</li>
+      <li>The only things the app remembers are the name you type for the PDF footer and your audio settings.</li>
       <li>It works with no internet connection once it has been opened once online.</li>
     </ul>
     <p class="hint">Transcripts are a machine's best attempt and will contain mistakes. Always check them against the recording.</p>

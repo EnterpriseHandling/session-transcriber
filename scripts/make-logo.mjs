@@ -43,4 +43,16 @@ const mark = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role
 </svg>
 `;
 writeFileSync(root + 'site/mark.svg', mark);
+// PDF heading, drawn as shapes so the PDF needs no heading font.
+const title = font.getPath('Session transcript', 0, 0, 100, { kerning: false, features: { liga: false, rlig: false } });
+const box = title.getBoundingBox();
+const n = (v) => +v.toFixed(2);
+const titleData = title.commands.map((c) => {
+  if (c.type === 'M' || c.type === 'L') return `${c.type}${n(c.x)} ${n(c.y)}`;
+  if (c.type === 'Q') return `Q${n(c.x1)} ${n(c.y1)} ${n(c.x)} ${n(c.y)}`;
+  if (c.type === 'C') return `C${n(c.x1)} ${n(c.y1)} ${n(c.x2)} ${n(c.y2)} ${n(c.x)} ${n(c.y)}`;
+  return 'Z';
+}).join(' ');
+if (/NaN/.test(titleData)) throw new Error('Heading path has gaps');
+writeFileSync(root + 'site/pdf-title.json', JSON.stringify({ d: titleData, width: +(box.x2 - box.x1).toFixed(2), left: +box.x1.toFixed(2) }));
 console.log('logo written');

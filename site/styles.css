@@ -92,6 +92,13 @@ h1 {
   font-weight: 600;
 }
 
+.top-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+.btn.small { min-height: 2.2rem; padding: 0.3rem 0.85rem; font-size: 0.85rem; }
+.audio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem 1.6rem; }
+.audio-grid .row { align-items: center; margin-top: 0.6rem; }
+.audio-grid .meter { max-width: 10rem; }
+#set-note:empty { display: none; }
+
 main { width: 100%; max-width: 48rem; margin: 0 auto; padding: 0.4rem 1.1rem 2rem; flex: 1; }
 
 /* ---------- cards ---------- */
@@ -247,6 +254,10 @@ progress::-moz-progress-bar { background: var(--teal-2); border-radius: 99px; }
   .turn-text { grid-column: 1 / -1; }
   .turn-check { grid-column: 3; grid-row: 1; }
 }
+
+.pdf-name { margin-top: 1.1rem; }
+.pdf-name input { font: inherit; font-weight: 400; padding: 0.5rem 0.6rem; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink); }
+.pdf-name + .hint { margin: 0.3rem 0 0; }
 
 /* ---------- privacy + footer ---------- */
 .privacy summary { cursor: pointer; font-weight: 600; color: var(--teal); }

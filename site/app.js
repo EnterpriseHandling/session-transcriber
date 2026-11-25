@@ -2,7 +2,7 @@
 // Privacy rule for this file: nothing about the recording or transcript is ever
 // written to storage or sent over the network. It lives in memory until the tab closes.
 
-import { Recorder, listKept, loadKept, deleteKept, listMics, fileName } from './recorder.js';
+import { Recorder, listKept, loadKept, deleteKept, fileName } from './recorder.js';
 import { Transcript, clock } from './transcript.js';
 
 const SR = 16000;
@@ -13,6 +13,9 @@ const el = {
   file: $('file'), fileInfo: $('file-info'), player: $('player'),
   models: $('models'), times: $('times'), start: $('start'), cancel: $('cancel'),
   wrap: $('progress-wrap'), bar: $('bar'), status: $('status'), error: $('error'),
+  savePdf: $('save-pdf'), pdfName: $('pdf-name'),
+  audioOpen: $('audio-open'), audioPanel: $('audio-panel'), audioClose: $('audio-close'), setOut: $('set-out'), setOutTest: $('set-out-test'),
+  setMic: $('set-mic'), setMicTest: $('set-mic-test'), setLevel: $('set-level'), setNote: $('set-note'),
   turns: $('turns'), who: $('who'), peopleList: $('people-list'), personAdd: $('person-add'), save: $('save'), copy: $('copy'), clear: $('clear'), saved: $('saved'), build: $('build'),
   kept: $('kept'), keptList: $('kept-list'), sourceButtons: $('source-buttons'),
   recOpen: $('rec-open'), recPanel: $('rec-panel'), mic: $('mic'), recDot: $('rec-dot'), recTime: $('rec-time'),
@@ -25,7 +28,8 @@ const state = {
   file: null, url: null, running: false, dirty: false,
   startedAt: 0, duration: 0, wakeLock: null, slowMode: false,
   session: null, recorder: null, preview: null,
-  people: ['Counsellor', 'Client'], canLabel: false,
+  people: ['Helper', 'Helpee'], canLabel: false,
+  micId: '', outId: '', micTest: null,
 };
 
 const transcript = new Transcript({
@@ -72,6 +76,7 @@ async function boot() {
   worker.onerror = (e) => showError(`The speech engine stopped: ${e.message || 'unknown error'}`);
 
   await refreshKept();
+  loadAudioChoices();
   el.boot.hidden = true;
   el.stepFile.hidden = false;
   el.stepRun.hidden = false;
@@ -304,6 +309,47 @@ el.save.addEventListener('click', () => {
   el.saved.textContent = 'Saved to this device. Keep it out of shared or online folders.';
 });
 
+// The PDF footer name is the one thing remembered between visits (on this device only).
+try { el.pdfName.value = localStorage.getItem('st-pdf-name') || ''; } catch (_) {}
+el.pdfName.addEventListener('change', () => {
+  try {
+    const name = el.pdfName.value.trim();
+    if (name) localStorage.setItem('st-pdf-name', name); else localStorage.removeItem('st-pdf-name');
+  } catch (_) {}
+});
+
+el.savePdf.addEventListener('click', async () => {
+  if (!hasTranscript()) return;
+  el.savePdf.disabled = true;
+  el.saved.textContent = 'Making the PDF…';
+  try {
+    const { makePdf } = await import('./pdf.js');
+    const bytes = await makePdf({
+      lines: transcript.lines(),
+      labelled: transcript.labelled,
+      names: transcript.names,
+      showTimes: el.times.checked,
+      recording: el.fileInfo.textContent,
+      footerName: el.pdfName.value.trim(),
+    });
+    const stem = (state.file?.name || 'recording').replace(/\.[^.]+$/, '');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    a.download = `${stem} transcript.pdf`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    state.dirty = false;
+    el.saved.textContent = 'PDF saved to this device. Keep it out of shared or online folders.';
+  } catch (err) {
+    el.saved.textContent = '';
+    showError(`The PDF could not be made (${err.message || err}). Save as text file still works.`);
+  } finally {
+    el.savePdf.disabled = false;
+  }
+});
+
 el.copy.addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(transcriptText()); el.saved.textContent = 'Copied.'; }
   catch (_) { el.saved.textContent = 'Copying was blocked. Use Save as text file instead.'; }
@@ -420,18 +466,30 @@ el.recCancel.addEventListener('click', () => {
   el.sourceButtons.hidden = false;
 });
 
-el.mic.addEventListener('change', () => startPreview());
+el.mic.addEventListener('change', () => { setMic(el.mic.value); startPreview(); });
 
 // Before recording: open the microphone so the level bar shows it is working.
+async function openMeter(levelEl) {
+  const meter = new Recorder({ onLevel: (v) => { levelEl.style.width = `${Math.round(v * 100)}%`; } });
+  const open = (id) => navigator.mediaDevices.getUserMedia({ audio: { deviceId: id ? { exact: id } : undefined } });
+  try {
+    meter.stream = await open(state.micId);
+  } catch (err) {
+    if (!state.micId || !['OverconstrainedError', 'NotFoundError'].includes(err?.name)) throw err;
+    setMic(''); // the chosen microphone has gone (unplugged): use the default one
+    meter.stream = await open('');
+  }
+  meter.state = 'recording';
+  meter.startMeter();
+  await fillDevices();
+  return meter;
+}
+
 async function startPreview() {
   stopPreview();
+  stopMicTest();
   try {
-    const preview = new Recorder({ onLevel: (v) => { el.level.style.width = `${Math.round(v * 100)}%`; } });
-    preview.stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: el.mic.value ? { exact: el.mic.value } : undefined } });
-    preview.state = 'recording';
-    preview.startMeter();
-    state.preview = preview;
-    await fillMics();
+    state.preview = await openMeter(el.level);
     el.recStart.disabled = false;
   } catch (err) {
     el.recStart.disabled = true;
@@ -444,21 +502,6 @@ function stopPreview() {
   state.preview.cleanUp();
   state.preview = null;
   el.level.style.width = '0';
-}
-
-async function fillMics() {
-  const current = el.mic.value;
-  const mics = await listMics();
-  el.mic.textContent = '';
-  for (const m of mics) {
-    const o = document.createElement('option');
-    o.value = m.deviceId === 'default' ? '' : m.deviceId;
-    o.textContent = m.label || 'Microphone';
-    el.mic.append(o);
-  }
-  if (!mics.length) el.mic.append(new Option('Default microphone', ''));
-  el.mic.value = current;
-  if (el.mic.selectedIndex < 0) el.mic.selectedIndex = 0;
 }
 
 function micProblem(err) {
@@ -484,7 +527,7 @@ el.recStart.addEventListener('click', async () => {
     onError: (err, fatal) => { showError(err.message); if (fatal) finishRecording(); },
   });
   try {
-    await rec.start(el.mic.value);
+    await rec.start(state.micId);
   } catch (err) {
     rec.cleanUp();
     el.recState.textContent = micProblem(err);
@@ -540,6 +583,8 @@ function setRecordingUi(mode) {
   el.recStop.hidden = !on;
   el.recStop.disabled = false;
   el.mic.disabled = on;
+  el.setMic.disabled = on;
+  el.setMicTest.disabled = on;
   el.start.disabled = on || !state.file;
   el.file.disabled = on;
   el.keptList.querySelectorAll('button').forEach((b) => { b.disabled = on; });
@@ -651,6 +696,163 @@ function renderPeople() {
 
 el.personAdd.addEventListener('click', () => {
   if (state.people.length >= 3) return;
-  state.people.push(['Counsellor', 'Client', 'Observer'].find((n) => !state.people.includes(n)) || '');
+  state.people.push(['Helper', 'Helpee', 'Observer'].find((n) => !state.people.includes(n)) || '');
   renderPeople();
 });
+
+// ---------- audio settings ----------
+
+const canPickOutput = 'setSinkId' in HTMLMediaElement.prototype;
+
+function loadAudioChoices() {
+  try {
+    state.micId = localStorage.getItem('st-mic') || '';
+    state.outId = localStorage.getItem('st-out') || '';
+  } catch (_) {}
+  fillDevices().then(applyOutput);
+  navigator.mediaDevices?.addEventListener?.('devicechange', () => fillDevices().then(applyOutput));
+}
+
+function remember(key, value) {
+  try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch (_) {}
+}
+
+function setMic(id) {
+  state.micId = id;
+  remember('st-mic', id);
+  el.mic.value = id;
+  el.setMic.value = id;
+}
+
+async function fillDevices() {
+  let devices = [];
+  try { devices = await navigator.mediaDevices.enumerateDevices(); } catch (_) {}
+  const list = (kind) => devices.filter((d) => d.kind === kind && d.deviceId && d.deviceId !== 'communications');
+  const fill = (select, items, chosen, fallback) => {
+    select.textContent = '';
+    const hasDefault = items.some((d) => d.deviceId === 'default');
+    if (!hasDefault) select.append(new Option(fallback, ''));
+    for (const d of items) select.append(new Option(d.label || fallback, d.deviceId === 'default' ? '' : d.deviceId));
+    select.value = chosen;
+    if (select.selectedIndex < 0) select.selectedIndex = 0;
+    return select.value;
+  };
+  const mics = list('audioinput');
+  const outs = list('audiooutput');
+  // Browsers only reveal device names once the microphone has been allowed.
+  const named = devices.some((d) => d.label);
+  const mic = fill(el.setMic, mics, state.micId, 'Default microphone');
+  fill(el.mic, mics, state.micId, 'Default microphone');
+  const out = fill(el.setOut, outs, state.outId, 'Default speakers or headphones');
+  if (named) { // a remembered device that is no longer plugged in falls back to the default
+    if (mic !== state.micId) setMic(mic);
+    if (out !== state.outId) { state.outId = out; remember('st-out', out); }
+  }
+  el.setOut.disabled = !canPickOutput;
+  return named;
+}
+
+async function applyOutput() {
+  if (!canPickOutput) return;
+  try { await el.player.setSinkId(state.outId || ''); }
+  catch (_) { state.outId = ''; try { await el.player.setSinkId(''); } catch (_) {} }
+}
+
+el.audioOpen.addEventListener('click', async () => {
+  const opening = el.audioPanel.hidden;
+  el.audioPanel.hidden = !opening;
+  el.audioOpen.setAttribute('aria-expanded', String(opening));
+  if (!opening) { stopMicTest(); return; }
+  el.setNote.textContent = canPickOutput ? '' : 'This browser chooses the speakers or headphones itself. Use the sound settings on the device.';
+  if (!(await fillDevices()) && !state.recorder) {
+    // Ask for the microphone once so the lists can show real names.
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+      await fillDevices();
+      await applyOutput();
+    } catch (err) {
+      el.setNote.textContent = `${micProblem(err)} Until then only the default devices are listed.`;
+    }
+  }
+  el.audioPanel.scrollIntoView({ block: 'nearest' });
+});
+
+el.audioClose.addEventListener('click', () => {
+  stopMicTest();
+  el.audioPanel.hidden = true;
+  el.audioOpen.setAttribute('aria-expanded', 'false');
+  el.audioOpen.focus();
+});
+
+el.setOut.addEventListener('change', async () => {
+  state.outId = el.setOut.value;
+  remember('st-out', state.outId);
+  await applyOutput();
+});
+
+el.setMic.addEventListener('change', () => {
+  setMic(el.setMic.value);
+  if (state.micTest) startMicTest();
+  else if (!el.recPanel.hidden && !state.recorder) startPreview();
+});
+
+// A short two-note chime, made here so nothing has to be downloaded.
+function chime() {
+  const rate = 22050;
+  const n = Math.round(rate * 0.9);
+  const view = new DataView(new ArrayBuffer(44 + n * 2));
+  const text = (o, t) => [...t].forEach((ch, i) => view.setUint8(o + i, ch.charCodeAt(0)));
+  text(0, 'RIFF'); view.setUint32(4, 36 + n * 2, true); text(8, 'WAVEfmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  text(36, 'data'); view.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) {
+    const t = i / rate;
+    const note = t < 0.4 ? 523.25 : 659.25;
+    const local = t < 0.4 ? t : t - 0.4;
+    const env = Math.min(1, local / 0.02) * Math.exp(-local * 5);
+    view.setInt16(44 + i * 2, Math.sin(2 * Math.PI * note * t) * env * 0.35 * 32767, true);
+  }
+  return new Blob([view], { type: 'audio/wav' });
+}
+
+el.setOutTest.addEventListener('click', async () => {
+  const url = URL.createObjectURL(chime());
+  const sound = new Audio(url);
+  try {
+    if (canPickOutput && state.outId) await sound.setSinkId(state.outId);
+    await sound.play();
+    el.setNote.textContent = 'Playing a test sound. If you cannot hear it, check the volume and the list above.';
+  } catch (err) {
+    el.setNote.textContent = `The test sound could not be played (${err.message || err}).`;
+  }
+  sound.addEventListener('ended', () => URL.revokeObjectURL(url), { once: true });
+});
+
+async function startMicTest() {
+  stopMicTest();
+  if (state.recorder) return;
+  stopPreview();
+  try {
+    const meter = await openMeter(el.setLevel);
+    state.micTest = meter;
+    el.setMicTest.textContent = 'Stop test';
+    el.setNote.textContent = 'Speak normally. The green bar should move.';
+    meter.timer = setTimeout(stopMicTest, 15000);
+  } catch (err) {
+    el.setNote.textContent = micProblem(err);
+  }
+}
+
+function stopMicTest() {
+  if (!state.micTest) return;
+  clearTimeout(state.micTest.timer);
+  state.micTest.cleanUp();
+  state.micTest = null;
+  el.setLevel.style.width = '0';
+  el.setMicTest.textContent = 'Test microphone';
+  if (!el.recPanel.hidden && !state.recorder) startPreview();
+}
+
+el.setMicTest.addEventListener('click', () => (state.micTest ? stopMicTest() : startMicTest()));

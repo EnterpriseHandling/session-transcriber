@@ -133,7 +133,7 @@ try {
     const talk = await transcribe('dialogue.mp3');
     console.log('--- dialogue.mp3 ---\n' + talk.text);
     const names = [...new Set(talk.rows.map((r) => r.who))];
-    check('two people found in the conversation', names.length === 2 && names.includes('Counsellor') && names.includes('Client'), names.join(', '));
+    check('two people found in the conversation', names.length === 2 && names.includes('Helper') && names.includes('Helpee'), names.join(', '));
     // Score: for each line on screen, who was really talking for most of it?
     let right = 0;
     let total = 0;
@@ -141,24 +141,24 @@ try {
       const share = { A: 0, B: 0 };
       for (const t of truth) share[t.speaker] += Math.max(0, Math.min(r.end, t.end) - Math.max(r.t, t.start));
       if (share.A + share.B <= 0) continue;
-      const real = share.A >= share.B ? 'Counsellor' : 'Client'; // voice A opens the session
+      const real = share.A >= share.B ? 'Helper' : 'Helpee'; // voice A opens the session
       const weight = r.text.length;
       total += weight;
       if (r.who === real) right += weight;
     }
     const accuracy = total ? right / total : 0;
     check('lines are labelled with the right person', accuracy >= 0.9, `${(accuracy * 100).toFixed(0)}% of the text, ${talk.rows.length} lines, ${talk.rows.filter((r) => r.check).length} marked to check, ${talk.seconds.toFixed(1)} s for 120 s of audio`);
-    check('first speaker gets the first name', talk.rows[0]?.who === 'Counsellor', talk.rows[0]?.who);
+    check('first speaker gets the first name', talk.rows[0]?.who === 'Helper', talk.rows[0]?.who);
 
     // Swapping names in "Check who is who" relabels every line.
     await page.select('#who .who-line select', '1');
     const swapped = await rows();
-    check('swapping who is who relabels the whole transcript', swapped[0].who === 'Client' && swapped.every((r, i) => r.who !== talk.rows[i].who));
+    check('swapping who is who relabels the whole transcript', swapped[0].who === 'Helpee' && swapped.every((r, i) => r.who !== talk.rows[i].who));
     // Renaming a person updates the labels.
     await page.$eval('#people-list input', (i) => { i.value = 'FR'; i.dispatchEvent(new Event('input', { bubbles: true })); });
     const renamed = await rows();
-    check('renaming a person updates the labels', renamed.some((r) => r.who === 'FR') && !renamed.some((r) => r.who === 'Counsellor'));
-    await page.$eval('#people-list input', (i) => { i.value = 'Counsellor'; i.dispatchEvent(new Event('input', { bubbles: true })); });
+    check('renaming a person updates the labels', renamed.some((r) => r.who === 'FR') && !renamed.some((r) => r.who === 'Helper'));
+    await page.$eval('#people-list input', (i) => { i.value = 'Helper'; i.dispatchEvent(new Event('input', { bubbles: true })); });
     // Enter splits a line; the second half goes to the other person.
     const before = swapped.length;
     await page.evaluate(() => {
@@ -175,7 +175,36 @@ try {
     check('Enter splits a line in two', (await rows()).length === before + 1);
     await page.keyboard.press('Backspace');
     check('Backspace at the start joins it back', (await rows()).length === before);
+    // PDF export, made on the device.
+    const pdf = await page.evaluate(async () => {
+      const { makePdf } = await import('./pdf.js');
+      const bytes = await makePdf({ lines: [{ time: 0, person: 0, name: 'Helper', text: 'Hello there.' }, { time: 4, person: 1, name: 'Helpee', text: 'Hi. '.repeat(900) }], labelled: true, names: ['Helper', 'Helpee'], showTimes: true, recording: 'test', footerName: 'Test Name' });
+      return { size: bytes.length, head: String.fromCharCode(...bytes.slice(0, 5)) };
+    });
+    check('a PDF is made on the device', pdf.head === '%PDF-' && pdf.size > 20000, `${Math.round(pdf.size / 1024)} KB`);
+    await page.click('#save-pdf');
+    await page.waitForFunction(() => /PDF saved/.test(document.getElementById('saved').textContent) || !document.getElementById('error').hidden, { timeout: 30000 });
+    check('Save as PDF works from the transcript', /PDF saved/.test(await page.$eval('#saved', (e) => e.textContent)), await page.$eval('#error', (e) => (e.hidden ? '' : e.textContent)));
     await page.$eval('#clear', (b) => b.click());
+
+    // ---- audio settings ----
+    await page.click('#audio-open');
+    await page.waitForFunction(() => document.querySelectorAll('#set-out option').length >= 2 && document.querySelectorAll('#set-mic option').length >= 2, { timeout: 15000 });
+    const devices = await page.evaluate(() => ({ outs: [...document.querySelectorAll('#set-out option')].map((o) => o.textContent), mics: [...document.querySelectorAll('#set-mic option')].map((o) => o.textContent) }));
+    check('audio settings list the speakers and microphones', devices.outs.length >= 2 && devices.mics.length >= 2, `${devices.outs.length} outputs, ${devices.mics.length} microphones`);
+    const outValue = await page.$eval('#set-out', (s) => s.options[s.options.length - 1].value);
+    await page.select('#set-out', outValue);
+    await (await page.$('#file')).uploadFile(join(root, 'tests', 'jfk.wav'));
+    await page.waitForFunction((v) => document.getElementById('player').sinkId === v, { timeout: 10000 }, outValue).catch(() => {});
+    check('chosen headphones or speakers are used for playback', (await page.$eval('#player', (p) => p.sinkId)) === outValue);
+    const micValue = await page.$eval('#set-mic', (s) => s.options[s.options.length - 1].value);
+    await page.select('#set-mic', micValue);
+    check('chosen microphone carries over to the recorder', (await page.$eval('#mic', (s) => s.value)) === micValue);
+    await page.select('#set-mic', '');
+    await page.select('#set-out', '');
+    await page.click('#audio-close');
+    await page.$eval('#clear', (b) => b.click());
+    await page.evaluate(() => { localStorage.clear(); });
 
     // ---- 3 & 4. nothing leaves the device ----
     const blocked = await page.evaluate(async () => {

@@ -27,7 +27,7 @@
     },
     {
       "id": "Xenova/whisper-small.en",
-      "revision": "main",
+      "revision": "fa16a75f5d91e83ecb6a2ccb690f14d91ef00ca4",
       "label": "Most accurate",
       "note": "Slowest and most careful. Good for the final version",
       "english": true
