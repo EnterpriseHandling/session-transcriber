@@ -54,6 +54,22 @@ for (const m of config.models) {
   models.push({ id: m.id, label: m.label, note: `${m.note} · ${mb} MB one-off download`, english: m.english, default: !!m.default });
 }
 if (!models.length) throw new Error('No models found in ./models. Run scripts/fetch-models.mjs first.');
+
+// Speaker-labelling models, if present.
+let speakers = null;
+const speakerFiles = ['segmentation/config.json', 'segmentation/onnx/model.onnx', 'embedding/config.json', 'embedding/onnx/model.onnx'];
+try {
+  let bytes = 0;
+  for (const f of speakerFiles) {
+    const src = join(root, 'models/speakers', f);
+    const size = (await stat(src)).size;
+    bytes += size;
+    modelHash.update(`speakers/${f}:${size};`);
+    await mkdir(join(dist, 'models/speakers', f, '..'), { recursive: true });
+    await cp(src, join(dist, 'models/speakers', f));
+  }
+  speakers = { mb: Math.round(bytes / 1048576) };
+} catch (_) { console.warn('Speaker-labelling models not found: building without speaker labels.'); }
 if (!models.some((m) => m.default)) models[0].default = true;
 
 // Version stamp from the app's own files, so an update is picked up automatically.
@@ -66,7 +82,7 @@ shellHash.update(modelsId);
 const build = shellHash.digest('hex').slice(0, 10);
 
 await mkdir(join(dist, 'models'), { recursive: true });
-await writeFile(join(dist, 'models/manifest.json'), JSON.stringify({ build, models }, null, 1));
+await writeFile(join(dist, 'models/manifest.json'), JSON.stringify({ build, models, speakers }, null, 1));
 
 const shellFiles = ['./', ...shellPaths.map((p) => relative(dist, p)).filter((p) => p !== 'index.html'), 'models/manifest.json'];
 let sw = await readFile(join(dist, 'sw.js'), 'utf8');
@@ -74,4 +90,4 @@ sw = sw.replace("'__BUILD__'", JSON.stringify(build)).replace('__MODELS__', mode
 await writeFile(join(dist, 'sw.js'), sw);
 await writeFile(join(dist, '.nojekyll'), '');
 
-console.log(`build ${build} · models ${models.map((m) => m.id).join(', ')}`);
+console.log(`build ${build} · models ${models.map((m) => m.id).join(', ')} · speaker labels ${speakers ? 'yes' : 'no'}`);

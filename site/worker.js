@@ -1,7 +1,10 @@
 // Runs the Whisper speech model off the main thread so the page stays responsive.
 // Everything here happens on the device. Model files come only from this app's own folder.
 
-import { pipeline, env } from './vendor/transformers.min.js';
+import * as tf from './vendor/transformers.min.js';
+import { loadDiarizer, diarize, assign } from './diarize.js';
+
+const { pipeline, env } = tf;
 
 const SR = 16000;
 const base = new URL('./', self.location.href);
@@ -24,12 +27,13 @@ let asr = null;
 let loaded = null; // model description currently in memory
 let queue = Promise.resolve();
 let cancelled = false;
+let voices = null; // speaker-labelling models, loaded the first time they are needed
 
 self.onmessage = (event) => {
   const msg = event.data;
   if (msg.type === 'cancel') { cancelled = true; return; }
   if (msg.type === 'load') queue = queue.then(() => load(msg.model)).catch(report('load'));
-  if (msg.type === 'run') queue = queue.then(() => run(msg.audio)).catch(report('run'));
+  if (msg.type === 'run') queue = queue.then(() => run(msg.audio, msg.people || 1)).catch(report('run'));
 };
 
 function report(where) {
@@ -107,28 +111,65 @@ function planBlocks(audio) {
 
 const NOISE = /^[\s\[(*]*(blank[_ ]audio|silence|no audio)[\s\])*.]*$/i;
 
-async function run(audio) {
+// Work out who is speaking when. Returns null if labels are not wanted or cannot be made;
+// the transcript is still produced either way.
+async function findVoices(audio, people) {
+  if (people < 2) return null;
+  try {
+    if (!voices) {
+      self.postMessage({ type: 'voices', stage: 'loading' });
+      voices = await loadDiarizer(tf, { device: 'wasm' });
+    }
+    self.postMessage({ type: 'voices', stage: 'listening', progress: 0 });
+    const who = await diarize(tf, voices, audio, people, (progress) => {
+      if (cancelled) throw new Error('cancelled');
+      self.postMessage({ type: 'voices', stage: 'listening', progress });
+    });
+    self.postMessage({ type: 'voices', stage: 'done', found: who.found });
+    return who.found >= 2 ? who : null;
+  } catch (err) {
+    if (!cancelled) self.postMessage({ type: 'voices', stage: 'failed', message: String(err?.message || err) });
+    return null;
+  }
+}
+
+async function run(audio, people) {
   cancelled = false;
   if (!asr) throw new Error('The speech engine is not loaded yet.');
+  const who = await findVoices(audio, people);
   const blocks = planBlocks(audio);
   self.postMessage({ type: 'plan', blocks: blocks.length, duration: audio.length / SR });
 
   const options = { return_timestamps: true };
   if (!loaded.english) { options.language = 'en'; options.task = 'transcribe'; }
 
+  let previous = 0;
   for (let i = 0; i < blocks.length; i++) {
     if (cancelled) break;
     const { start, end, silent } = blocks[i];
     const offset = start / SR;
-    let segments = [];
+    const blockEnd = end / SR;
+    const segments = [];
     if (!silent) {
       const out = await asr(audio.subarray(start, end), options);
       const chunks = Array.isArray(out?.chunks) && out.chunks.length ? out.chunks : [{ timestamp: [0, null], text: out?.text || '' }];
-      segments = chunks
-        .map((c) => ({ t: offset + (Number.isFinite(c.timestamp?.[0]) ? c.timestamp[0] : 0), text: (c.text || '').trim() }))
-        .filter((s) => s.text && !NOISE.test(s.text));
+      for (let c = 0; c < chunks.length; c++) {
+        const text = (chunks[c].text || '').trim();
+        if (!text || NOISE.test(text)) continue;
+        const [a, b] = chunks[c].timestamp || [];
+        const t = offset + (Number.isFinite(a) ? a : 0);
+        const next = chunks[c + 1]?.timestamp?.[0];
+        let stop = Number.isFinite(b) ? offset + b : Number.isFinite(next) ? offset + next : blockEnd;
+        stop = Math.min(blockEnd, Math.max(stop, t + 0.2));
+        const line = { start: t, end: stop, text };
+        const pieces = who ? assign(who, line, previous) : [{ ...line, speaker: 0, check: false }];
+        for (const p of pieces) {
+          segments.push({ t: p.start, end: p.end, text: p.text, speaker: p.speaker, check: p.check });
+          previous = p.speaker;
+        }
+      }
     }
-    self.postMessage({ type: 'block', index: i, of: blocks.length, start: offset, end: end / SR, segments });
+    self.postMessage({ type: 'block', index: i, of: blocks.length, start: offset, end: blockEnd, segments });
   }
   self.postMessage({ type: 'done', cancelled });
 }

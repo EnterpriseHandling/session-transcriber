@@ -1,0 +1,128 @@
+[
+ {
+  "speaker": "A",
+  "start": 0.8,
+  "end": 10.07,
+  "text": "Hello, come in and take a seat. Thanks for coming along today. Before we start, I just want to remind you that this is a practice session, and we have about ten minutes together."
+ },
+ {
+  "speaker": "B",
+  "start": 10.6,
+  "end": 13.71,
+  "text": "Okay, thank you. That sounds fine."
+ },
+ {
+  "speaker": "A",
+  "start": 14.14,
+  "end": 16.24,
+  "text": "So, what would you like to talk about today?"
+ },
+ {
+  "speaker": "B",
+  "start": 16.95,
+  "end": 26.35,
+  "text": "Well, I have been feeling quite overwhelmed with the house move. There is so much to organise, and I keep putting things off until the last minute."
+ },
+ {
+  "speaker": "A",
+  "start": 26.74,
+  "end": 27.67,
+  "text": "Mm-hm."
+ },
+ {
+  "speaker": "B",
+  "start": 28.31,
+  "end": 34.22,
+  "text": "Then I end up doing everything late at night, and I am exhausted the next day at work."
+ },
+ {
+  "speaker": "A",
+  "start": 34.77,
+  "end": 40.91,
+  "text": "It sounds like the move is taking up a lot of your energy, and the more tired you get, the harder it is to make a start."
+ },
+ {
+  "speaker": "B",
+  "start": 41.29,
+  "end": 47.71,
+  "text": "Yes, exactly. That is exactly it. I look at the list and I just freeze."
+ },
+ {
+  "speaker": "A",
+  "start": 48.34,
+  "end": 52.18,
+  "text": "You freeze. What is that like for you, in the moment?"
+ },
+ {
+  "speaker": "B",
+  "start": 52.55,
+  "end": 60.49,
+  "text": "It is a bit like standing at the bottom of a very big hill. I know I have to climb it, but I cannot see where the path begins."
+ },
+ {
+  "speaker": "A",
+  "start": 61.08,
+  "end": 65.3,
+  "text": "That is a very clear picture. A big hill, and no obvious first step."
+ },
+ {
+  "speaker": "B",
+  "start": 65.69,
+  "end": 66.39,
+  "text": "Right."
+ },
+ {
+  "speaker": "A",
+  "start": 66.79,
+  "end": 69.85,
+  "text": "I wonder what the smallest possible first step might look like?"
+ },
+ {
+  "speaker": "B",
+  "start": 70.43,
+  "end": 77.71,
+  "text": "Probably just packing one box. The books in the spare room, maybe. That would take twenty minutes."
+ },
+ {
+  "speaker": "A",
+  "start": 78.52,
+  "end": 82.21,
+  "text": "One box of books. How does it feel when you say that out loud?"
+ },
+ {
+  "speaker": "B",
+  "start": 82.63,
+  "end": 88.16,
+  "text": "Honestly, a bit lighter. It sounds silly, but one box feels possible."
+ },
+ {
+  "speaker": "A",
+  "start": 88.63,
+  "end": 93.95,
+  "text": "It does not sound silly at all. You noticed that when the task is smaller, the feeling changes."
+ },
+ {
+  "speaker": "B",
+  "start": 94.65,
+  "end": 100.02,
+  "text": "Yes. I think I have been looking at the whole hill, and not at my own feet."
+ },
+ {
+  "speaker": "A",
+  "start": 100.89,
+  "end": 107.24,
+  "text": "Okay. We are coming towards the end of our time. Is there anything you would like to take away from today?"
+ },
+ {
+  "speaker": "B",
+  "start": 107.91,
+  "end": 114.72,
+  "text": "I will pack one box tonight, and I will stop looking at the whole list. Thank you, this has really helped."
+ },
+ {
+  "speaker": "A",
+  "start": 115.29,
+  "end": 118.36,
+  "text": "You are very welcome. Thank you for sharing that with me."
+ }
+]

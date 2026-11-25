@@ -3,6 +3,7 @@
 // written to storage or sent over the network. It lives in memory until the tab closes.
 
 import { Recorder, listKept, loadKept, deleteKept, listMics, fileName } from './recorder.js';
+import { Transcript, clock } from './transcript.js';
 
 const SR = 16000;
 const TARGET_SECONDS = 10 * 60; // training sessions are 10 minutes
@@ -12,7 +13,7 @@ const el = {
   file: $('file'), fileInfo: $('file-info'), player: $('player'),
   models: $('models'), times: $('times'), start: $('start'), cancel: $('cancel'),
   wrap: $('progress-wrap'), bar: $('bar'), status: $('status'), error: $('error'),
-  out: $('out'), save: $('save'), copy: $('copy'), clear: $('clear'), saved: $('saved'), build: $('build'),
+  turns: $('turns'), who: $('who'), peopleList: $('people-list'), personAdd: $('person-add'), save: $('save'), copy: $('copy'), clear: $('clear'), saved: $('saved'), build: $('build'),
   kept: $('kept'), keptList: $('kept-list'), sourceButtons: $('source-buttons'),
   recOpen: $('rec-open'), recPanel: $('rec-panel'), mic: $('mic'), recDot: $('rec-dot'), recTime: $('rec-time'),
   level: $('level'), recState: $('rec-state'), recStart: $('rec-start'), recPause: $('rec-pause'),
@@ -24,7 +25,17 @@ const state = {
   file: null, url: null, running: false, dirty: false,
   startedAt: 0, duration: 0, wakeLock: null, slowMode: false,
   session: null, recorder: null, preview: null,
+  people: ['Counsellor', 'Client'], canLabel: false,
 };
+
+const transcript = new Transcript({
+  root: el.turns,
+  whoRoot: el.who,
+  onChange: () => { state.dirty = true; el.saved.textContent = ''; },
+  onPlay: (t) => { if (!el.player.hidden) { el.player.currentTime = Math.max(0, t - 0.3); el.player.play().catch(() => {}); } },
+});
+const hasTranscript = () => !transcript.empty;
+const peopleNames = () => state.people.map((n, i) => n.trim() || `Person ${i + 1}`);
 
 let worker = null;
 
@@ -51,8 +62,10 @@ async function boot() {
 
   const manifest = await (await fetch('models/manifest.json')).json();
   state.models = manifest.models;
+  state.canLabel = !!manifest.speakers;
   el.build.textContent = `Version ${manifest.build}`;
   renderModels();
+  renderPeople();
 
   worker = new Worker('worker.js', { type: 'module' });
   worker.onmessage = onWorker;
@@ -113,12 +126,17 @@ function onWorker(event) {
     state.loadedId = msg.id;
     setNote(msg.id, 'ready');
     state.loadWaiters = state.loadWaiters.filter((w) => { if (w.id === msg.id) { w.resolve(); return false; } return true; });
+  } else if (msg.type === 'voices') {
+    if (msg.stage === 'loading') el.status.textContent = 'Getting ready to tell the voices apart…';
+    else if (msg.stage === 'listening') el.status.textContent = `Working out who is speaking… ${Math.round((msg.progress || 0) * 100)}%`;
+    else if (msg.stage === 'done' && msg.found < 2) transcript.setNote('Only one voice was picked out, so every line has the same name. If two people spoke, press Enter inside a line to split it, then choose who spoke.');
+    else if (msg.stage === 'failed') transcript.setNote(`The voices could not be told apart this time (${msg.message}). You can still set who spoke on each line.`);
   } else if (msg.type === 'plan') {
     state.duration = msg.duration;
     state.startedAt = performance.now();
     el.bar.value = 0;
   } else if (msg.type === 'block') {
-    appendSegments(msg.segments);
+    addSegments(msg.segments);
     const frac = msg.end / state.duration;
     el.bar.value = frac;
     const elapsed = (performance.now() - state.startedAt) / 1000;
@@ -170,11 +188,14 @@ el.cancel.addEventListener('click', () => { worker.postMessage({ type: 'cancel' 
 
 async function start() {
   if (!state.file || state.running) return;
-  if (el.out.value.trim() && state.dirty && !window.confirm('This replaces the transcript below, which has not been saved. Continue?')) return;
+  if (hasTranscript() && state.dirty && !window.confirm('This replaces the transcript below, which has not been saved. Continue?')) return;
   state.running = true;
   state.duration = 0;
   el.error.hidden = true;
-  el.out.value = '';
+  const names = peopleNames();
+  const people = state.canLabel ? names.length : 1;
+  transcript.reset({ names, labelled: names.length >= 2 });
+  transcript.showTimes(el.times.checked);
   el.saved.textContent = '';
   state.dirty = false;
   setBusy(true);
@@ -188,7 +209,7 @@ async function start() {
     el.status.textContent = state.slowMode ? 'Transcribing (slower mode)…' : 'Transcribing…';
     el.stepOut.hidden = false;
     await holdAwake();
-    worker.postMessage({ type: 'run', audio }, [audio.buffer]);
+    worker.postMessage({ type: 'run', audio, people }, [audio.buffer]);
   } catch (err) {
     showError(friendly(err));
     finish('');
@@ -218,14 +239,12 @@ function friendly(err) {
   return m;
 }
 
-function appendSegments(segments) {
+function addSegments(segments) {
   if (!segments.length) return;
-  const text = el.times.checked
-    ? segments.map((s) => `[${clock(s.t)}] ${s.text}`).join('\n')
-    : segments.map((s) => s.text).join(' ');
-  const atEnd = el.out.scrollTop + el.out.clientHeight >= el.out.scrollHeight - 30;
-  el.out.value += (el.out.value ? '\n' : '') + text;
-  if (atEnd) el.out.scrollTop = el.out.scrollHeight;
+  const page = document.scrollingElement;
+  const atEnd = page.scrollTop + window.innerHeight >= page.scrollHeight - 160;
+  transcript.append(segments);
+  if (atEnd) el.turns.lastElementChild?.scrollIntoView({ block: 'nearest' });
   state.dirty = true;
 }
 
@@ -235,7 +254,7 @@ function finish(message) {
   el.bar.value = message.startsWith('Finished') ? 1 : el.bar.value;
   el.status.textContent = message;
   releaseAwake();
-  if (el.out.value.trim()) el.stepOut.hidden = false;
+  if (hasTranscript()) el.stepOut.hidden = false;
 }
 
 function setBusy(busy) {
@@ -247,7 +266,8 @@ function setBusy(busy) {
   el.recOpen.disabled = busy;
   el.recDelete.disabled = busy;
   el.keptList.querySelectorAll('button').forEach((b) => { b.disabled = busy; });
-  el.times.disabled = busy;
+  el.peopleList.querySelectorAll('input, button').forEach((i) => { i.disabled = busy; });
+  el.personAdd.disabled = busy;
   el.clear.disabled = busy;
   el.models.querySelectorAll('input').forEach((i) => { i.disabled = busy; });
 }
@@ -259,7 +279,8 @@ function showError(text) {
 
 // ---------- saving ----------
 
-el.out.addEventListener('input', () => { state.dirty = true; el.saved.textContent = ''; });
+el.times.addEventListener('change', () => transcript.showTimes(el.times.checked));
+const transcriptText = () => transcript.text({ times: el.times.checked });
 
 el.save.addEventListener('click', () => {
   const stem = (state.file?.name || 'recording').replace(/\.[^.]+$/, '');
@@ -271,7 +292,7 @@ el.save.addEventListener('click', () => {
     '----------------------------------------------------------------',
     '',
   ].join('\n');
-  const blob = new Blob([(header + el.out.value).replace(/\r?\n/g, '\r\n')], { type: 'text/plain;charset=utf-8' });
+  const blob = new Blob([(header + transcriptText()).replace(/\r?\n/g, '\r\n')], { type: 'text/plain;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `${stem} transcript.txt`;
@@ -284,8 +305,8 @@ el.save.addEventListener('click', () => {
 });
 
 el.copy.addEventListener('click', async () => {
-  try { await navigator.clipboard.writeText(el.out.value); el.saved.textContent = 'Copied.'; }
-  catch (_) { el.out.select(); el.saved.textContent = 'Press Ctrl+C to copy.'; }
+  try { await navigator.clipboard.writeText(transcriptText()); el.saved.textContent = 'Copied.'; }
+  catch (_) { el.saved.textContent = 'Copying was blocked. Use Save as text file instead.'; }
 });
 
 el.clear.addEventListener('click', async () => {
@@ -293,7 +314,7 @@ el.clear.addEventListener('click', async () => {
     if (!window.confirm('This also deletes the recording kept on this Chromebook. Save it as a file first if you need it. Delete everything?')) return;
     await deleteKept(state.session.id);
     await refreshKept();
-  } else if (state.dirty && el.out.value.trim() && !window.confirm('Clear the recording and the unsaved transcript from this page?')) return;
+  } else if (state.dirty && hasTranscript() && !window.confirm('Clear the recording and the unsaved transcript from this page?')) return;
   if (state.running) worker.postMessage({ type: 'cancel' });
   if (state.url) URL.revokeObjectURL(state.url);
   Object.assign(state, { file: null, url: null, dirty: false, session: null });
@@ -304,7 +325,7 @@ el.clear.addEventListener('click', async () => {
   el.player.hidden = true;
   el.file.value = '';
   el.fileInfo.textContent = '';
-  el.out.value = '';
+  transcript.reset({ names: peopleNames(), labelled: false });
   el.saved.textContent = '';
   el.status.textContent = '';
   el.wrap.hidden = true;
@@ -313,7 +334,7 @@ el.clear.addEventListener('click', async () => {
 });
 
 window.addEventListener('beforeunload', (e) => {
-  if (state.recorder || state.running || (state.dirty && el.out.value.trim())) { e.preventDefault(); e.returnValue = ''; }
+  if (state.recorder || state.running || (state.dirty && hasTranscript())) { e.preventDefault(); e.returnValue = ''; }
 });
 
 document.addEventListener('visibilitychange', async () => {
@@ -339,14 +360,6 @@ async function holdAwake() {
 }
 
 // ---------- small helpers ----------
-
-function clock(seconds) {
-  const s = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const pad = (v) => String(v).padStart(2, '0');
-  return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${pad(m)}:${pad(s % 60)}`;
-}
 
 function roughly(seconds) {
   if (seconds < 50) return 'under a minute';
@@ -456,7 +469,7 @@ function micProblem(err) {
 
 el.recStart.addEventListener('click', async () => {
   if (state.recorder) return;
-  if (state.dirty && el.out.value.trim() && !window.confirm('The transcript below has not been saved and will be cleared when the new recording is ready. Continue?')) return;
+  if (state.dirty && hasTranscript() && !window.confirm('The transcript below has not been saved and will be cleared when the new recording is ready. Continue?')) return;
   stopPreview();
   const rec = new Recorder({
     onLevel: (v) => { el.level.style.width = `${Math.round(v * 100)}%`; },
@@ -505,7 +518,8 @@ async function finishRecording() {
     el.sourceButtons.hidden = false;
     releaseAwake();
     if (result) {
-      el.out.value = '';
+      transcript.reset({ names: peopleNames(), labelled: false });
+      el.stepOut.hidden = true;
       state.dirty = false;
       chooseFile(result.file, result.session);
       el.saved.textContent = '';
@@ -584,7 +598,7 @@ function fixPlayerLength() {
 // A new version has been downloaded in the background. Switch to it straight away
 // if nothing is in progress; otherwise offer a button so no work is ever lost.
 function onUpdate() {
-  const busy = state.running || state.recorder || (state.dirty && el.out.value.trim()) || !el.recPanel.hidden;
+  const busy = state.running || state.recorder || (state.dirty && hasTranscript()) || !el.recPanel.hidden;
   if (!busy) { location.reload(); return; }
   if (document.getElementById('update-note')) return;
   const note = document.createElement('p');
@@ -602,3 +616,41 @@ function onUpdate() {
   note.append(btn);
   document.querySelector('main').prepend(note);
 }
+
+// ---------- who's in the room ----------
+
+function renderPeople() {
+  el.peopleList.textContent = '';
+  state.people.forEach((name, i) => {
+    const row = document.createElement('div');
+    row.className = `person sp-${i}`;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = name;
+    input.maxLength = 24;
+    input.autocomplete = 'off';
+    input.setAttribute('aria-label', `Person ${i + 1}`);
+    input.addEventListener('input', () => {
+      state.people[i] = input.value;
+      transcript.setNames(peopleNames());
+    });
+    row.append(input);
+    if (state.people.length > 1) {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'person-remove';
+      remove.textContent = 'Remove';
+      remove.setAttribute('aria-label', `Remove ${name || `person ${i + 1}`}`);
+      remove.addEventListener('click', () => { state.people.splice(i, 1); renderPeople(); });
+      row.append(remove);
+    }
+    el.peopleList.append(row);
+  });
+  el.personAdd.hidden = state.people.length >= 3;
+}
+
+el.personAdd.addEventListener('click', () => {
+  if (state.people.length >= 3) return;
+  state.people.push(['Counsellor', 'Client', 'Observer'].find((n) => !state.people.includes(n)) || '');
+  renderPeople();
+});

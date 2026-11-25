@@ -206,18 +206,46 @@ progress::-webkit-progress-value { background: var(--teal-2); border-radius: 99p
 progress::-moz-progress-bar { background: var(--teal-2); border-radius: 99px; }
 #status { margin: 0.45rem 0 0; font-size: 0.92rem; color: var(--muted); }
 
+/* ---------- people ---------- */
+:root {
+  --sp0: #1f4b55; --sp0-ink: #1c3f47; --sp0-bg: #e7f0ed;
+  --sp1: #7a5570; --sp1-ink: #54394d; --sp1-bg: #f3ecf1;
+  --sp2: #7d6a35; --sp2-ink: #564a26; --sp2-bg: #f4f0e2;
+}
+.sp-0 { --sp: var(--sp0); --sp-ink: var(--sp0-ink); --sp-bg: var(--sp0-bg); }
+.sp-1 { --sp: var(--sp1); --sp-ink: var(--sp1-ink); --sp-bg: var(--sp1-bg); }
+.sp-2 { --sp: var(--sp2); --sp-ink: var(--sp2-ink); --sp-bg: var(--sp2-bg); }
+.people-list { display: flex; flex-wrap: wrap; gap: 0.5rem 0.8rem; }
+.person { display: flex; align-items: center; gap: 0.35rem; padding-left: 0.6rem; border-left: 4px solid var(--sp); }
+.person input { font: inherit; width: 11rem; padding: 0.45rem 0.6rem; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--sp-ink); font-weight: 600; }
+.person-remove, .link-btn { font: inherit; font-size: 0.85rem; background: none; border: 0; padding: 0.3rem 0.2rem; color: var(--teal-2); text-decoration: underline; cursor: pointer; }
+.person-remove:disabled, .link-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.link-btn { margin-top: 0.4rem; }
+#people .hint { margin: 0.4rem 0 0.9rem; }
+
 /* ---------- step 3 ---------- */
-textarea {
-  width: 100%;
-  font: inherit;
-  font-size: 0.95rem;
-  line-height: 1.7;
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fcfdfd;
-  color: var(--ink);
-  resize: vertical;
+.who { border: 1px solid var(--line); background: #f8fbfa; border-radius: 12px; padding: 0.8rem 1rem; margin: 0.2rem 0 0.9rem; }
+.who-title { margin: 0 0 0.4rem; font-weight: 600; color: var(--teal); }
+.who .hint { margin: 0.4rem 0 0; }
+.who-line { display: flex; align-items: center; gap: 0.6rem; padding: 0.3rem 0 0.3rem 0.6rem; border-left: 4px solid var(--sp); margin: 0.35rem 0; }
+.who-line select, .turn-who { font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--sp-ink); background: var(--sp-bg); border: 1px solid transparent; border-radius: 99px; padding: 0.2rem 0.5rem; cursor: pointer; max-width: 11rem; }
+.who-play { font: inherit; font-size: 0.75rem; width: 1.9rem; height: 1.9rem; border-radius: 50%; border: 1px solid var(--line); background: #fff; color: var(--teal); cursor: pointer; flex: none; }
+.who-quote { color: var(--muted); font-size: 0.9rem; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.turns { border: 1px solid var(--line); border-radius: 12px; background: #fcfdfd; padding: 0.5rem 0.4rem; max-height: 34rem; overflow-y: auto; }
+.turn { display: grid; grid-template-columns: auto auto 1fr auto; column-gap: 0.6rem; align-items: start; padding: 0.4rem 0.5rem 0.4rem 0.6rem; border-left: 4px solid transparent; border-radius: 4px; }
+.turn[class*="sp-"] { border-left-color: var(--sp); margin: 0.15rem 0; }
+.turn:focus-within { background: #f4f8f7; }
+.turn-time { font: inherit; font-size: 0.8rem; font-variant-numeric: tabular-nums; color: var(--muted); background: none; border: 0; padding: 0.25rem 0.1rem; cursor: pointer; grid-column: 1; }
+.turn-time:hover { color: var(--teal); text-decoration: underline; }
+.turns.no-times .turn-time { display: none; }
+.turn-who { grid-column: 2; margin-top: 0.1rem; }
+.turn-text { grid-column: 3; min-width: 0; font-size: 0.97rem; line-height: 1.65; color: var(--sp-ink, var(--ink)); outline: none; white-space: pre-wrap; overflow-wrap: anywhere; padding: 0.05rem 0.2rem; border-radius: 4px; }
+.turn-text:focus-visible { box-shadow: 0 0 0 2px var(--sage); }
+.turn-check { grid-column: 4; font: inherit; font-size: 0.72rem; font-weight: 600; color: #8a5a12; background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 99px; padding: 0.1rem 0.5rem; cursor: pointer; margin-top: 0.2rem; }
+@media (max-width: 34rem) {
+  .turn { grid-template-columns: auto 1fr auto; }
+  .turn-text { grid-column: 1 / -1; }
+  .turn-check { grid-column: 3; grid-row: 1; }
 }
 
 /* ---------- privacy + footer ---------- */

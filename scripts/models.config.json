@@ -11,6 +11,13 @@
   ],
   "models": [
     {
+      "id": "Xenova/whisper-tiny.en",
+      "revision": "79fb389fc764e7c395bd330e9531d9d32ada7049",
+      "label": "Quick draft",
+      "note": "Fastest, with more mistakes",
+      "english": true
+    },
+    {
       "id": "Xenova/whisper-base.en",
       "revision": "95bf40a508535962c6483ead40270b2e32267508",
       "label": "Standard",
@@ -19,10 +26,10 @@
       "default": true
     },
     {
-      "id": "Xenova/whisper-tiny.en",
-      "revision": "79fb389fc764e7c395bd330e9531d9d32ada7049",
-      "label": "Quick draft",
-      "note": "Roughly twice as fast, with more mistakes",
+      "id": "Xenova/whisper-small.en",
+      "revision": "main",
+      "label": "Most accurate",
+      "note": "Slowest and most careful. Good for the final version",
       "english": true
     },
     {
@@ -33,5 +40,19 @@
       "english": false,
       "testOnly": true
     }
-  ]
+  ],
+  "speakersNote": "Speaker-labelling models, downloaded once at build time from the sherpa-onnx project's GitHub releases and checked against a SHA-256 fingerprint. Segmentation: pyannote segmentation 3.0 (MIT). Voice-prints: WeSpeaker CAM++ trained on VoxCeleb (CC BY 4.0).",
+  "speakers": {
+    "segmentation": {
+      "type": "pyannote",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2",
+      "member": "sherpa-onnx-pyannote-segmentation-3-0/model.onnx",
+      "sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079"
+    },
+    "embedding": {
+      "type": "wespeaker-resnet",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/wespeaker_en_voxceleb_CAM++.onnx",
+      "sha256": "7acd352a0372de23ce49379b02864833b7f3f501b4ea25248fc977389f08e5fc"
+    }
+  }
 }

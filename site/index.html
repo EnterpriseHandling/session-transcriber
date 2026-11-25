@@ -76,6 +76,12 @@
 
   <section id="step-run" class="card" hidden>
     <h2><span class="num">2</span> Transcribe</h2>
+    <fieldset id="people">
+      <legend>Who's in the room?</legend>
+      <div id="people-list" class="people-list"></div>
+      <button type="button" id="person-add" class="link-btn">+ Add another person</button>
+      <p class="hint">Use roles or initials, never a client's name. With two or more people, each line is labelled with who spoke.</p>
+    </fieldset>
     <fieldset id="quality">
       <legend>Quality</legend>
       <div id="models"></div>
@@ -94,8 +100,9 @@
 
   <section id="step-out" class="card" hidden>
     <h2><span class="num">3</span> Check and save</h2>
-    <p class="hint">Read it through against the recording and correct any mistakes. You can type straight into the box.</p>
-    <textarea id="out" rows="16" spellcheck="true" aria-label="Transcript"></textarea>
+    <p class="hint">Read it through against the recording and correct any mistakes. Click a time to hear that part. Type in any line to change it. Press Enter inside a line to split it in two.</p>
+    <div id="who" class="who" hidden></div>
+    <div id="turns" class="turns" role="group" aria-label="Transcript"></div>
     <div class="row">
       <button id="save" class="btn primary">Save as text file</button>
       <button id="copy" class="btn">Copy</button>
